@@ -1,0 +1,68 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Game logic tests
+        run: node tests/logic.test.js
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build APK
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee build.log
+
+      - name: Show build errors
+        if: failure()
+        run: |
+          [ -f build.log ] || exit 0
+          grep -E "^e: |error:|What went wrong|FAILURE|Could not|> " build.log | head -40 | while IFS= read -r line; do
+            echo "::error::${line}"
+          done
+
+      - name: Collect APK
+        run: cp app/build/outputs/apk/release/app-release.apk IvyBlock.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: IvyBlock-apk
+          path: IvyBlock.apk
+
+      - name: Publish "latest" release
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest IvyBlock.apk \
+            --title "Ivy Block — остання збірка" \
+            --notes "APK зібрано з коміту ${GITHUB_SHA::7} (збірка №${GITHUB_RUN_NUMBER}). Встанови на Android-телефон, дозволивши встановлення з невідомих джерел." \
+            --target "$GITHUB_SHA" \
+            --latest
