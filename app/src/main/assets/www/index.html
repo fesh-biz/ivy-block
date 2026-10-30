@@ -25,6 +25,10 @@
         <span class="btn-title">Класика</span>
         <span class="btn-sub" id="classic-sub">Рекорд: 0</span>
       </button>
+      <button id="btn-tetris" class="big-btn">
+        <span class="btn-title">Тетріс</span>
+        <span class="btn-sub" id="tetris-sub">Рекорд: 0</span>
+      </button>
       <button id="btn-challenges" class="big-btn">
         <span class="btn-title">Челенджі</span>
         <span class="btn-sub" id="challenges-sub">Рівень 1 з 50</span>
@@ -60,11 +64,34 @@
     </header>
   </section>
 
+  <!-- TETRIS -->
+  <section id="screen-tetris" class="screen">
+    <canvas id="tcanvas"></canvas>
+    <header class="hud" id="thud">
+      <button class="icon-btn" id="tbtn-pause" aria-label="Пауза"></button>
+      <div class="hud-center">
+        <div class="hud-label" id="thud-label"></div>
+        <div class="hud-value" id="thud-value">0</div>
+      </div>
+      <div class="hud-right tstats" id="thud-right"></div>
+    </header>
+    <div class="tcontrols" id="tcontrols">
+      <button class="tbtn" data-k="left" aria-label="Ліворуч"></button>
+      <button class="tbtn" data-k="right" aria-label="Праворуч"></button>
+      <button class="tbtn" data-k="soft" aria-label="Прискорити"></button>
+      <button class="tbtn" data-k="drop" aria-label="Скинути"></button>
+      <button class="tbtn" data-k="ccw" aria-label="Повернути проти годинникової стрілки"></button>
+      <button class="tbtn" data-k="cw" aria-label="Повернути за годинниковою стрілкою"></button>
+    </div>
+  </section>
+
   <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-card" id="modal-card"></div>
   </div>
 </div>
 <script src="logic.js"></script>
+<script src="tetris.js"></script>
 <script src="game.js"></script>
+<script src="tetris-ui.js"></script>
 </body>
 </html>

@@ -24,7 +24,9 @@ jobs:
           node-version: 20
 
       - name: Game logic tests
-        run: node tests/logic.test.js
+        run: |
+          node tests/logic.test.js
+          node tests/tetris.test.js
 
       - uses: actions/setup-java@v4
         with:

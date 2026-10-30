@@ -44,6 +44,7 @@
     crown: '<svg class="icon" viewBox="0 0 24 24"><path d="M3 8l4.6 4.2L12 5l4.4 7.2L21 8l-2 11H5z" fill="#ffcf4a"/></svg>',
     lock: '<svg class="icon" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2.5" fill="currentColor"/><path d="M8 10.5V8a4 4 0 018 0v2.5" fill="none" stroke="currentColor" stroke-width="2.4"/></svg>',
     blocks: '<svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="2" fill="#ff6b57"/><rect x="13" y="3" width="8" height="8" rx="2" fill="#ffb627"/><rect x="3" y="13" width="8" height="8" rx="2" fill="#2ec4b6"/></svg>',
+    tetro: '<svg class="icon" viewBox="0 0 24 24"><rect x="2.5" y="5" width="6.2" height="6.2" rx="1.6" fill="#9b6bf2"/><rect x="8.9" y="5" width="6.2" height="6.2" rx="1.6" fill="#9b6bf2"/><rect x="15.3" y="5" width="6.2" height="6.2" rx="1.6" fill="#9b6bf2"/><rect x="8.9" y="11.4" width="6.2" height="6.2" rx="1.6" fill="#9b6bf2"/></svg>',
     piece: '<svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="8.5" height="8.5" rx="2" fill="currentColor"/><rect x="3" y="12.5" width="8.5" height="8.5" rx="2" fill="currentColor"/><rect x="12.5" y="12.5" width="8.5" height="8.5" rx="2" fill="currentColor"/></svg>',
   };
   const GOAL_ICON = { leaves: ICON.leaf, lines: ICON.lines, score: ICON.gem };
@@ -115,6 +116,7 @@
     if (name === 'menu') renderMenu();
     if (name === 'levels') renderLevels();
     if (name === 'game') requestAnimationFrame(layout);
+    if (window.IvyTetrisUI) window.IvyTetrisUI.setActive(name === 'tetris');
   }
 
   function setIcon(el, svg) { el.innerHTML = svg; }
@@ -133,6 +135,8 @@
     $('challenges-sub').textContent = done >= L.LEVEL_COUNT
       ? `Усі ${L.LEVEL_COUNT} пройдено · ★ ${totalStars()}`
       : `Рівень ${u} з ${L.LEVEL_COUNT} · ★ ${totalStars()}`;
+    const tSaved = store.get('ivy.tetris', null);
+    $('tetris-sub').textContent = (tSaved ? 'Продовжити · ' : '') + 'Рекорд: ' + (store.get('ivy.tetrisBest', 0) | 0);
     renderToggles();
   }
 
@@ -186,6 +190,7 @@
         <li>${ICON.blocks}<span>Перетягуй фігури на поле 8×8.</span></li>
         <li>${ICON.lines}<span>Заповни рядок або стовпець, і він зникне.</span></li>
         <li>${ICON.gem}<span>Кілька ліній одразу або кілька ходів поспіль із лініями дають комбо й більше очок.</span></li>
+        <li>${ICON.tetro}<span>У «Тетрісі» фігури падають згори на поле 10×20: складай із них суцільні рядки.</span></li>
         <li>${ICON.leaf}<span>У челенджах виконай мету за обмежену кількість фігур. Листочок плюща збирається, коли зникає його рядок або стовпець.</span></li>
       </ul>
       <p style="margin-top:14px">Гра закінчується, коли жодна фігура не влазить на поле.</p>
@@ -459,7 +464,12 @@
     spr.width = spr.height = Math.ceil(size * DPR);
     const g = spr.getContext('2d');
     g.scale(DPR, DPR);
-    const p = PAL[color] || PAL[1];
+    paintBlock(g, PAL[color] || PAL[1], size, color === 8);
+    spriteCache.set(key, spr);
+    return spr;
+  }
+  /** Paints one glossy block at (0,0) of `size` CSS px with palette entry `p`. */
+  function paintBlock(g, p, size, mossy) {
     const m = Math.max(1, size * 0.045), r = size * 0.2, s = size - 2 * m;
     g.fillStyle = p.dark;
     rrPath(g, m, m, s, s, r); g.fill();
@@ -469,14 +479,12 @@
     rrPath(g, m, m, s, s - size * 0.09, r); g.fill();
     g.fillStyle = 'rgba(255,255,255,.30)';
     rrPath(g, m + size * 0.14, m + size * 0.09, s - size * 0.28, size * 0.11, size * 0.055); g.fill();
-    if (color === 8) { // mossy speckles on overgrown blocks
+    if (mossy) { // mossy speckles on overgrown blocks
       g.fillStyle = 'rgba(126,217,87,.22)';
       [[0.28, 0.62, 0.07], [0.7, 0.4, 0.05], [0.6, 0.72, 0.06]].forEach(([fx, fy, fr]) => {
         g.beginPath(); g.arc(size * fx, size * fy, size * fr, 0, Math.PI * 2); g.fill();
       });
     }
-    spriteCache.set(key, spr);
-    return spr;
   }
   function drawBlock(x, y, size, color, alpha, scale) {
     const spr = blockSprite(color, size);
@@ -852,6 +860,7 @@
   setIcon($('btn-levels-back'), ICON.back);
   setIcon($('btn-pause'), ICON.pause);
   $('btn-classic').addEventListener('click', () => { SFX.tap(); startClassic(false); });
+  $('btn-tetris').addEventListener('click', () => { SFX.tap(); if (window.IvyTetrisUI) window.IvyTetrisUI.start(false); });
   $('btn-challenges').addEventListener('click', () => { SFX.tap(); show('levels'); });
   $('btn-sound').addEventListener('click', toggleSound);
   $('btn-vibro').addEventListener('click', toggleVibro);
@@ -880,8 +889,20 @@
       if (game && game.status === 'playing' && !inputLocked) showPause();
       return true;
     }
+    if (screen === 'tetris') {
+      if (window.IvyTetrisUI) window.IvyTetrisUI.onBack();
+      return true;
+    }
     if (screen === 'levels') { show('menu'); return true; }
     return false;
+  };
+
+  // Shared helpers for the Tetris screen (tetris-ui.js).
+  window.IvyKit = {
+    store, settings, SFX, vibrate, ICON, PAL, plural, btn, openModal, closeModal, show,
+    toggleSound, toggleVibro, showHelp, rrPath, paintBlock, ease, clamp01,
+    modalOpen: () => !!modal,
+    setModalBack(fn) { if (modal) modal.onBack = fn; },
   };
 
   // Debug / test hook
