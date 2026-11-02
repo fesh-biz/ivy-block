@@ -2,6 +2,7 @@
  * Ivy Block — "Tetris" mode logic (no DOM).
  * Guideline-style rules: 10×20 well (+2 hidden rows), 7-bag, SRS rotation with wall kicks,
  * hold, 5-piece preview, lock delay with move resets, T-spins, back-to-back and combos.
+ * opts.fixed keeps the speed (level) constant instead of raising it every 10 lines.
  * Works in the browser (window.IvyTetris) and in Node (module.exports) for tests.
  */
 (function (root, factory) {
@@ -18,6 +19,7 @@
   const SOFT_MS = 35;       // soft drop: one row per this many ms (at most)
   const CLEAR_MS = 320;     // pause while full rows flash
   const PREVIEW = 5;
+  const MAX_SPEED = 15;     // highest level offered for constant speed (~7 ms per row)
   const LINE_SCORE = [0, 100, 300, 500, 800];
   const TSPIN_SCORE = [400, 800, 1200, 1600];
 
@@ -91,6 +93,7 @@
     this.lines = 0;
     this.startLevel = opts.level || 1;
     this.level = this.startLevel;
+    this.fixed = !!opts.fixed; // constant speed: the level never grows
     this.combo = -1;
     this.b2b = false;
     this.status = 'playing'; // playing | over
@@ -328,7 +331,7 @@
     this.cells = out;
     const before = this.level;
     this.lines += rows.length;
-    this.level = this.startLevel + Math.floor(this.lines / 10);
+    if (!this.fixed) this.level = this.startLevel + Math.floor(this.lines / 10);
     if (this.level > before) this.events.push({ type: 'level', level: this.level });
     this.spawn();
   };
@@ -345,7 +348,7 @@
     return e;
   };
 
-  const SAVED_KEYS = ['cells', 'queue', 'bag', 'hold', 'canHold', 'score', 'lines', 'startLevel', 'level',
+  const SAVED_KEYS = ['cells', 'queue', 'bag', 'hold', 'canHold', 'score', 'lines', 'startLevel', 'level', 'fixed',
     'combo', 'b2b', 'status', 'piece', 'clearing', 'lockResets', 'lowest', 'lastRotate'];
 
   P.serialize = function () {
@@ -360,6 +363,7 @@
     if (!d || d.v !== 1 || !Array.isArray(d.cells) || d.cells.length !== W * H) return null;
     const g = Object.create(P);
     SAVED_KEYS.forEach(k => { g[k] = d[k]; });
+    g.fixed = !!g.fixed; // saves made before constant speed existed
     g.rng = rng || Math.random;
     g.soft = false;
     g.fallAcc = 0;
@@ -371,7 +375,7 @@
   };
 
   return {
-    W, H, VISIBLE, HIDDEN, TYPES, ROT, LOCK_MS, CLEAR_MS, MAX_RESETS, PREVIEW,
+    W, H, VISIBLE, HIDDEN, TYPES, ROT, LOCK_MS, CLEAR_MS, MAX_RESETS, PREVIEW, MAX_SPEED,
     gravityMs, Tetris,
   };
 });

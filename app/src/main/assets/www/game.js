@@ -135,8 +135,7 @@
     $('challenges-sub').textContent = done >= L.LEVEL_COUNT
       ? `Усі ${L.LEVEL_COUNT} пройдено · ★ ${totalStars()}`
       : `Рівень ${u} з ${L.LEVEL_COUNT} · ★ ${totalStars()}`;
-    const tSaved = store.get('ivy.tetris', null);
-    $('tetris-sub').textContent = (tSaved ? 'Продовжити · ' : '') + 'Рекорд: ' + (store.get('ivy.tetrisBest', 0) | 0);
+    if (window.IvyTetrisUI) $('tetris-sub').textContent = window.IvyTetrisUI.menuSub();
     renderToggles();
   }
 
@@ -860,7 +859,7 @@
   setIcon($('btn-levels-back'), ICON.back);
   setIcon($('btn-pause'), ICON.pause);
   $('btn-classic').addEventListener('click', () => { SFX.tap(); startClassic(false); });
-  $('btn-tetris').addEventListener('click', () => { SFX.tap(); if (window.IvyTetrisUI) window.IvyTetrisUI.start(false); });
+  $('btn-tetris').addEventListener('click', () => { SFX.tap(); if (window.IvyTetrisUI) window.IvyTetrisUI.showModes(); });
   $('btn-challenges').addEventListener('click', () => { SFX.tap(); show('levels'); });
   $('btn-sound').addEventListener('click', toggleSound);
   $('btn-vibro').addEventListener('click', toggleVibro);

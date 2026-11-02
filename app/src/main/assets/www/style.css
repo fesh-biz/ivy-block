@@ -239,6 +239,28 @@ button:focus-visible { outline: 3px solid var(--leaf); outline-offset: 3px; }
 .help-list li .icon { width: 22px; height: 22px; flex: none; margin-top: 1px; }
 .toggles { display: flex; justify-content: center; gap: 10px; margin-top: 4px; }
 
+/* tetris mode chooser */
+.modal-card .tsep { margin: 14px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .8px; }
+.seg {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 10px; padding: 4px;
+  background: rgba(0,0,0,.22); border-radius: 18px; border: 1px solid var(--panel-line);
+}
+.seg button {
+  padding: 11px 8px; border-radius: 14px; font-size: 17px; font-weight: 900; color: var(--muted);
+  transition: background .15s ease, color .15s ease;
+}
+.seg button.on { background: linear-gradient(180deg, #9be05a, #4fae4a); color: #0b2014; box-shadow: 0 3px 0 #2c6e30; }
+.modal-card .seg-hint { font-size: 14px; margin: 8px 0 0; }
+.speed { display: flex; align-items: center; gap: 12px; margin: 12px 0 2px; }
+.speed .icon-btn:disabled { opacity: .3; }
+.speed-mid { flex: 1; }
+.speed-v { font-size: 38px; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
+.speed-bar { height: 6px; margin-top: 8px; border-radius: 99px; background: rgba(255,255,255,.08); overflow: hidden; }
+.speed-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--leaf), var(--gold), var(--danger)); background-size: 260px 100%; transition: width .15s ease; }
+.modal-card .mode-rec { display: flex; justify-content: center; align-items: center; gap: 6px; margin-top: 12px; color: var(--gold); }
+.modal-card .mode-rec .icon { width: 18px; height: 18px; }
+.modal-card .mode-tag { margin-top: -2px; font-size: 13px; color: var(--leaf); }
+
 @media (max-height: 720px) {
   .logo h1 { font-size: 50px; }
   #screen-menu { gap: 30px; }

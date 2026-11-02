@@ -8,7 +8,9 @@
   const { store, SFX, vibrate, ICON, ease, clamp01 } = K;
   const $ = id => document.getElementById(id);
 
-  const KEY_SAVE = 'ivy.tetris', KEY_BEST = 'ivy.tetrisBest', KEY_HELP = 'ivy.tetrisHelp';
+  const KEY_SAVE = 'ivy.tetris', KEY_HELP = 'ivy.tetrisHelp', KEY_MODE = 'ivy.tetrisMode';
+  // Records: one for growing speed, one per speed for constant speed ({ "5": 1234, ... }).
+  const KEY_BEST = 'ivy.tetrisBest', KEY_BEST_FIXED = 'ivy.tetrisBestFixed';
   const DAS = 170, ARR = 50;   // button auto-repeat: delay, then interval (ms)
   const NEXT_SHOWN = 3;
 
@@ -29,6 +31,8 @@
     tap: svg('<circle cx="12" cy="12" r="4.2" fill="currentColor"/><circle cx="12" cy="12" r="8.4" fill="none" stroke="currentColor" stroke-width="1.8" opacity=".55"/>'),
     swipe: svg('<path d="M3.5 12h17M7.5 8l-4 4 4 4M16.5 8l4 4-4 4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>'),
     up: svg('<path d="M12 19.5v-13M6.5 12L12 6.5l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>'),
+    minus: svg('<path d="M6 12h12" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>'),
+    plus: svg('<path d="M6 12h12M12 6v12" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>'),
   };
 
   // ---------------------------------------------------------------- state
@@ -38,7 +42,11 @@
   let game = null;
   let active = false;
   let best = store.get(KEY_BEST, 0) | 0;
+  let bestFixed = store.get(KEY_BEST_FIXED, {}) || {};
   let bestAtStart = 0;
+  // Mode picked last time in the chooser: growing speed, or a constant one.
+  const mode = Object.assign({ fixed: false, speed: 1 }, store.get(KEY_MODE, {}));
+  mode.speed = Math.max(1, Math.min(T.MAX_SPEED, mode.speed | 0));
   let vw = 0, vh = 0, DPR = 1;
   let cell = 28, bx = 0, by = 0, pad = 6, lblH = 16;
   let holdBox = { x: 0, y: 0, w: 0, h: 0 };
@@ -52,6 +60,27 @@
   let touch = null;
 
   const canPlay = () => active && !!game && game.status === 'playing' && !K.modalOpen();
+
+  // ---------------------------------------------------------------- modes & records
+  const bestOf = (fixed, speed) => (fixed ? bestFixed[speed] | 0 : best);
+  const gameBest = () => bestOf(game.fixed, game.startLevel);
+  const modeName = (fixed, speed) => (fixed ? `Постійна швидкість ${speed}` : 'Швидкість зростає');
+  function saveBest(g) {
+    if (g.score <= bestOf(g.fixed, g.startLevel)) return;
+    if (g.fixed) { bestFixed[g.startLevel] = g.score; store.set(KEY_BEST_FIXED, bestFixed); }
+    else { best = g.score; store.set(KEY_BEST, best); }
+  }
+  function savedGame() {
+    const saved = store.get(KEY_SAVE, null);
+    const g = saved ? T.Tetris.deserialize(saved) : null;
+    return g && g.status === 'playing' ? g : null;
+  }
+  /** Subtitle of the "Тетріс" button in the main menu. */
+  function menuSub() {
+    const g = savedGame();
+    const fixed = g ? g.fixed : mode.fixed, speed = g ? g.startLevel : mode.speed;
+    return (g ? 'Продовжити · ' : '') + (fixed ? `Швидкість ${speed} · ` : '') + 'Рекорд: ' + bestOf(fixed, speed);
+  }
 
   // ---------------------------------------------------------------- sprites & text
   const sprites = new Map();
@@ -323,9 +352,9 @@
   let hudKey = '';
   function renderHud(bump) {
     if (!game) return;
-    const label = `${ICON.crown}<span>${Math.max(best, game.score)}</span>`;
+    const label = `${ICON.crown}<span>${Math.max(gameBest(), game.score)}</span>`;
     const value = `<span>${shownScore}</span>`;
-    const right = `<div class="k">рівень</div><div class="v">${game.level}</div><div class="k">лінії</div><div class="v sm">${game.lines}</div>`;
+    const right = `<div class="k">${game.fixed ? 'швидкість' : 'рівень'}</div><div class="v">${game.level}</div><div class="k">лінії</div><div class="v sm">${game.lines}</div>`;
     const key = label + value + right;
     if (key !== hudKey) {
       hudKey = key;
@@ -445,26 +474,26 @@
     if (!game) return;
     if (game.status === 'playing') store.set(KEY_SAVE, game.serialize());
     else store.del(KEY_SAVE);
-    if (game.score > best) { best = game.score; store.set(KEY_BEST, best); }
+    saveBest(game);
   }
 
   // ---------------------------------------------------------------- screens & modals
   function toMenu() { K.closeModal(); K.show('menu'); }
 
-  function start(fresh) {
+  /** fresh: start a new game (opts.fixed / opts.speed, default: the chosen mode); otherwise resume the save. */
+  function start(fresh, opts) {
     clearTimeout(endTimer);
     K.closeModal();
-    let g = null;
-    if (!fresh) {
-      const saved = store.get(KEY_SAVE, null);
-      if (saved) g = T.Tetris.deserialize(saved);
-      if (g && g.status !== 'playing') g = null;
-    }
+    let g = fresh ? null : savedGame();
     const resumed = !!g;
-    if (!g) { g = new T.Tetris(); store.del(KEY_SAVE); }
+    if (!g) {
+      const m = opts || mode;
+      g = m.fixed ? new T.Tetris({ fixed: true, level: m.speed }) : new T.Tetris();
+      store.del(KEY_SAVE);
+    }
     game = g;
     releaseAll();
-    bestAtStart = best;
+    bestAtStart = gameBest();
     particles = []; floaters = []; trails = [];
     lockFx = null; overT = 0; holdFx = 0;
     shownScore = g.score;
@@ -475,13 +504,58 @@
     else if (!store.get(KEY_HELP, false)) { store.set(KEY_HELP, true); showHelp(null, true); }
   }
 
+  const sameMode = () => ({ fixed: game.fixed, speed: game.startLevel });
+
+  /** Mode chooser shown from the main menu: resume, or a new game with growing / constant speed. */
+  function showModes() {
+    const saved = savedGame();
+    const sp = mode.speed;
+    const set = patch => { Object.assign(mode, patch); store.set(KEY_MODE, mode); showModes(); };
+    K.openModal(`
+      <h3>Тетріс</h3>
+      ${saved ? `<div class="modal-actions" style="margin-top:14px">${K.btn('resume', 'Продовжити', true, `${modeName(saved.fixed, saved.startLevel)} · ${saved.score}`)}</div>
+      <p class="tsep">або нова гра</p>` : '<p>Як мають падати фігури?</p>'}
+      <div class="seg" role="radiogroup" aria-label="Швидкість">
+        <button data-act="grow" role="radio" aria-checked="${!mode.fixed}" class="${mode.fixed ? '' : 'on'}">Зростає</button>
+        <button data-act="fixed" role="radio" aria-checked="${mode.fixed}" class="${mode.fixed ? 'on' : ''}">Постійна</button>
+      </div>
+      <p class="seg-hint">${mode.fixed ? 'Швидкість не змінюється всю гру.' : 'Кожні 10 ліній фігури падають швидше.'}</p>
+      ${mode.fixed ? `
+      <div class="speed">
+        <button class="icon-btn" data-act="slower" aria-label="Повільніше" ${sp <= 1 ? 'disabled' : ''}>${CTRL.minus}</button>
+        <div class="speed-mid">
+          <div class="speed-v">${sp}</div>
+          <div class="speed-bar"><i style="width:${(sp / T.MAX_SPEED) * 100}%"></i></div>
+        </div>
+        <button class="icon-btn" data-act="faster" aria-label="Швидше" ${sp >= T.MAX_SPEED ? 'disabled' : ''}>${CTRL.plus}</button>
+      </div>` : ''}
+      <p class="mode-rec">${ICON.crown}<span>Рекорд: ${bestOf(mode.fixed, sp)}</span></p>
+      <div class="modal-actions" style="margin-top:14px">
+        ${K.btn('play', saved ? 'Нова гра' : 'Грати', !saved, saved ? 'Незавершену гру буде скинуто' : '')}
+        ${K.btn('back', 'Назад')}
+      </div>`,
+    {
+      actions: {
+        resume: () => start(false),
+        play: () => start(true, mode),
+        back: K.closeModal,
+        grow: () => set({ fixed: false }),
+        fixed: () => set({ fixed: true }),
+        slower: () => set({ speed: Math.max(1, sp - 1) }),
+        faster: () => set({ speed: Math.min(T.MAX_SPEED, sp + 1) }),
+      },
+      onBack: K.closeModal,
+    });
+  }
+
   function showPause() {
     if (!game || game.status !== 'playing') return;
     releaseAll();
     persist();
     K.openModal(`
       <h3>Пауза</h3>
-      <p>Рахунок: ${game.score} · Рівень ${game.level}</p>
+      <p>Рахунок: ${game.score} · ${game.fixed ? 'Швидкість' : 'Рівень'} ${game.level}</p>
+      ${game.fixed ? '<p class="mode-tag">Постійна швидкість</p>' : ''}
       <div class="toggles">
         <button class="icon-btn" id="m-sound" data-act="sound" aria-label="Звук"></button>
         <button class="icon-btn" id="m-vibro" data-act="vibro" aria-label="Вібрація"></button>
@@ -495,7 +569,7 @@
     {
       actions: {
         resume: K.closeModal,
-        restart: () => start(true),
+        restart: () => start(true, sameMode()),
         exit: toMenu,
         sound: K.toggleSound,
         vibro: K.toggleVibro,
@@ -515,7 +589,7 @@
         <li>${CTRL.swipe}<span>Веди пальцем ліворуч або праворуч, щоб рухати її.</span></li>
         <li>${CTRL.soft}<span>Веди вниз, щоб прискорити. Різко змахни вниз, щоб скинути.</span></li>
         <li>${CTRL.up}<span>Змахни вгору або торкнись «Запас», щоб відкласти фігуру на потім.</span></li>
-        <li>${ICON.gem}<span>4 рядки за раз це Тетріс. Кожні 10 ліній фігури падають швидше.</span></li>
+        <li>${ICON.gem}<span>4 рядки за раз це Тетріс. Кожні 10 ліній фігури падають швидше, якщо в меню не обрано постійну швидкість.</span></li>
       </ul>
       <p style="margin-top:12px">Кнопки внизу дублюють усі рухи.</p>
       <div class="modal-actions">${K.btn('ok', first ? 'Грати' : 'Зрозуміло', true)}</div>`,
@@ -529,10 +603,10 @@
       <h3>Стакан заповнено</h3>
       <p>Твій рахунок</p>
       <div class="big-num">${game.score}</div>
-      ${rec ? '<span class="badge">Новий рекорд!</span>' : `<p>Рекорд: ${best}</p>`}
-      <p>Рівень ${game.level} · ${game.lines} ${K.plural(game.lines, 'лінія', 'лінії', 'ліній')}</p>
+      ${rec ? '<span class="badge">Новий рекорд!</span>' : `<p>Рекорд: ${gameBest()}</p>`}
+      <p>${game.fixed ? `Постійна швидкість ${game.level}` : `Рівень ${game.level}`} · ${game.lines} ${K.plural(game.lines, 'лінія', 'лінії', 'ліній')}</p>
       <div class="modal-actions">${K.btn('again', 'Ще раз', true)}${K.btn('menu', 'У меню')}</div>`,
-    { actions: { again: () => start(true), menu: toMenu }, onBack: toMenu });
+    { actions: { again: () => start(true, sameMode()), menu: toMenu }, onBack: toMenu });
   }
 
   // ---------------------------------------------------------------- touch gestures on the well
@@ -668,8 +742,10 @@
   });
 
   // ---------------------------------------------------------------- public
+  $('tetris-sub').textContent = menuSub();
+
   window.IvyTetrisUI = {
-    start,
+    start, showModes, menuSub,
     setActive(on) {
       if (on && !active) { active = true; last = 0; }
       else if (!on && active) {
@@ -688,6 +764,6 @@
   window.__ivyTetris = {
     get game() { return game; },
     get geom() { return { cell, bx, by, pad, holdBox, nextBoxes }; },
-    start, showPause,
+    start, showPause, showModes,
   };
 })();

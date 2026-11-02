@@ -167,6 +167,29 @@ test('level goes up every 10 lines', () => {
   assert.strictEqual(g.level, 2);
 });
 
+test('constant speed: level stays put after 10 lines, and points use that level', () => {
+  const g = new T.Tetris({ rng: L.mulberry32(1), level: 7, fixed: true });
+  g.lines = 8;
+  for (let r = H - 2; r < H; r++) fillRow(g, r, [0]);
+  setPiece(g, 'I', 3, H - 4, -1);
+  g.lock();
+  g.tick(T.CLEAR_MS + 1);
+  assert.strictEqual(g.lines, 10);
+  assert.strictEqual(g.level, 7);
+  assert.strictEqual(g.score, 300 * 7);
+  assert(!g.drainEvents().some(e => e.type === 'level'));
+});
+
+test('constant speed survives save / load; old saves default to growing speed', () => {
+  const g = new T.Tetris({ rng: L.mulberry32(2), level: 4, fixed: true });
+  const h = T.Tetris.deserialize(g.serialize());
+  assert.strictEqual(h.fixed, true);
+  assert.strictEqual(h.level, 4);
+  const old = JSON.parse(newGame(3).serialize());
+  delete old.fixed;
+  assert.strictEqual(T.Tetris.deserialize(old).fixed, false);
+});
+
 test('game over when a new piece cannot spawn', () => {
   const g = newGame(1);
   for (let r = 0; r < H; r++) fillRow(g, r, [r % W]);
